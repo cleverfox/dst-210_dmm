@@ -1,0 +1,63 @@
+[package]
+name = "dst210-bridge"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+embassy-executor = "0.10"
+embassy-futures = "0.1"
+embassy-net = { version = "0.9.1", features = [
+    "dhcpv4",
+    "medium-ethernet",
+    "tcp",
+    "udp",
+] }
+embassy-time = "0.5.0"
+embassy-sync = "0.8"
+embedded-io-async = "0.7"
+esp-alloc = "0.11"
+esp-backtrace = { version = "0.20", features = [
+    "panic-handler",
+    "println",
+] }
+esp-bootloader-esp-idf = "0.6"
+esp-hal = { version = "1.2", features = ["log-04", "unstable"] }
+esp-println = { version = "0.18", features = ["log-04"] }
+esp-rtos = { version = "0.4", features = ["esp-radio", "embassy", "log-04"] }
+esp-radio = { version = "1.0.0-beta.1", features = [
+    "log-04",
+    "wifi",
+    "unstable",
+    "ble",
+    "coex",
+] }
+trouble-host = { version = "0.7", features = [
+    "default-packet-pool-mtu-255",
+    "derive",
+] }
+esp-storage = "0.10"
+embedded-storage = "0.3.1"
+static_cell = "2.1.0"
+heapless = "0.8"
+log = "0.4"
+esp-hal-dhcp-server = "0.4"
+
+[features]
+default = ["esp32c6"]
+esp32c6 = [
+    "esp-backtrace/esp32c6",
+    "esp-bootloader-esp-idf/esp32c6",
+    "esp-hal/esp32c6",
+    "esp-rtos/esp32c6",
+    "esp-radio/esp32c6",
+    "esp-storage/esp32c6",
+]
+
+[profile.dev]
+opt-level = 2
+
+[profile.release]
+debug = true
+debug-assertions = true
+lto = "fat"
+codegen-units = 1

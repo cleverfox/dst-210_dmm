@@ -1,0 +1,17 @@
+[target.'cfg(target_arch = "riscv32")']
+runner    = "espflash flash --monitor"
+rustflags = [
+  "-C", "link-arg=-Tlinkall.x",
+  "-C", "force-frame-pointers",
+]
+
+[build]
+target = "riscv32imac-unknown-none-elf"
+
+[env]
+ESP_LOG = "info"
+WIFI_SSID = "YourSSID"
+WIFI_PASSWORD = "YourPassword"
+
+[unstable]
+build-std = ["alloc", "core"]

@@ -419,9 +419,12 @@ Full packets (multimeter -> display):
 - HOLD / REL / MAX/MIN on the meter do not affect the UART: the bridge
   always sees live absolute readings. Implement these in the bridge if
   needed (e.g. SCPI CALC:NULL, CALC:AVER).
-- Mode commands (`AA 55`) could in principle let the bridge select the
-  function (SCPI CONF:VOLT:DC etc.), but that means injecting packets into
-  the display MCU -> multimeter line. Out of scope for a read-only bridge.
+- Mode commands (`AA 55`) let the bridge select the function (SCPI
+  CONF:VOLT:DC etc.): injecting them into the COMMANDS line works
+  [confirmed]. Sharing the line with the display MCU: UART idles high,
+  so use a wired-AND. Either side can then send; both send only on mode
+  change, so collisions are unlikely. After a bridge command the display
+  UI keeps its own mode and units.
   A passive bridge can still listen to this line to learn the selected
   mode, e.g. to tell live-wire `OL` from resistance `OL`. Commands are sent
   only once per mode change, so the reading flags remain the primary mode
