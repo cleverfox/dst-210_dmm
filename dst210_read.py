@@ -4,8 +4,11 @@
 Packet (12 bytes):
   [0..1]  5A A5        header
   [2..6]  display      7-segment bitmap (see decode_display)
-  [7..10] ??           flags / annunciators (unidentified)
-  [11]    ??           checksum? (not plain sum/xor)
+  [6..8]  flags        annunciators (partly identified)
+  [9]     ??           always 0 so far
+  [10..11] frequency   AC frequency in Hz, big-endian (secondary display
+                       in V AC; something else, ignored by the display
+                       firmware, in other modes)
 
 Usage: dst210_read.py /dev/tty.usbserial-XXXX [baud]
 Requires: pip install pyserial
@@ -70,6 +73,8 @@ KNOWN = {
     5: 0xFF,
     6: 0x0F,  # lo nibble -> D4
     8: 0x80,  # DP after leading "1" (1.xxxx)
+    10: 0xFF,  # frequency, high byte
+    11: 0xFF,  # frequency, low byte
     0: 0xFF,  # header
     1: 0xFF,
 }
@@ -89,6 +94,14 @@ def decode_flags(pkt):
 def decode_unit(pkt):
     """Prefix + unit, e.g. "mA", "nF", "V"."""
     return "".join(_set(pkt, PREFIXES)) + "".join(_set(pkt, UNITS))
+
+
+def decode_secondary(pkt):
+    """Secondary display: frequency in V AC (as the display firmware shows
+    it), e.g. "50 Hz", or "" in other modes."""
+    if pkt[2] & 0x01 and pkt[8] & 0x02:  # AC and V
+        return f"{(pkt[10] << 8) | pkt[11]} Hz"
+    return ""
 
 
 def decode_display(pkt):
@@ -184,13 +197,13 @@ def main():
         val = "?" if val is None else val if isinstance(val, str) else f"{val:g}"
         flags = " ".join(decode_flags(pkt))
         unit = decode_unit(pkt)
-        line = (f"{raw} | {disp:>8} | {val:>8} {unit:<4} | {flags:<12} | "
+        line = (f"{raw} | {disp:>8} | {val:>8} {unit:<4} | "
+                f"{decode_secondary(pkt):>8} | {flags:<12} | "
                 f"{fmt_unknown(pkt)}")
         if prev is not None:
             changed = [
                 f"B{i}.{bit}" for i, bit in
                 set(unknown_bits(pkt)) ^ set(unknown_bits(prev))
-                if i != PKT_LEN - 1
             ]
             if changed:
                 line += " | changed: " + ",".join(sorted(changed))

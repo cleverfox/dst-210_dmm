@@ -47,7 +47,8 @@ next to the big LQFP100 display MCU):
 The gold test points labelled RX, TX, GND and 3V3 to the left of the
 isolator are on the **multimeter side**; see the warning below.
 
-> **TODO:** logic level.
+Logic level is **3.3 V** on both sides of the isolator, so any 3.3 V
+USB-UART adapter (or an ESP32) can be connected directly.
 
 ### Safety
 
@@ -83,8 +84,8 @@ Full details, raw captures and open questions:
 ### Readings
 
 ```
-5A A5 | d0 d1 d2 d3 d4 | f7 f8 f9 f10 | x11
-hdr   | LCD segments    | flags        | unknown analog value
+5A A5 | d0 d1 d2 d3 d4 | f7 f8 f9 | hz10 hz11
+hdr   | LCD segments    | flags    | AC frequency, Hz (big-endian)
 ```
 
 Example: `5A A5 86 FF 0B 4A 0E 00 02 00 01 1B` = **3.014 V DC**
@@ -162,8 +163,10 @@ Example: `AA 55 05 0C 00 00 00 00 00 11` = select **DC V**.
 - **deg F, HOLD, REL, MAX/MIN** are done entirely by the display MCU. They
   do not change the UART stream: it always carries live, absolute readings
   in deg C.
-- **Byte 11** is not a checksum or range code. It looks like a slow analog
-  value, and you don't need it to decode readings.
+- **Bytes 10..11** are the AC frequency in Hz, shown by the meter as a
+  secondary readout in V AC (e.g. `00 31` = 49 Hz on mains). In other
+  modes they hold an unrelated slowly drifting value that the display
+  firmware ignores.
 
 ## Tools
 
@@ -184,8 +187,9 @@ python3 dst210_read10.py /dev/ttyUSB1   # mode commands decoder
 ```
 
 ```
-5A A5 8E EA B7 CD 07 01 01 00 01 20 |   176.25 |   176.25 mA   | DC AUTO?     | B7:00----0- B8:-0-00--- B9:00000000 B10:00000001 B11:00100000
-5A A5 84 EA 4B AE 4D 20 80 00 01 27 |    .7042 |   0.7042 kOhm | AUTO?        | B7:00----0- B8:-0-00--- B9:00000000 B10:00000001 B11:00100111
+5A A5 A5 0D 8A FA 07 00 02 00 00 31 |    217.6 |    217.6 V    |    49 Hz | AC AUTO?     | B7:00----0- B8:-0-00--- B9:00000000
+5A A5 8E EA B7 CD 07 01 01 00 01 20 |   176.25 |   176.25 mA   |          | DC AUTO?     | B7:00----0- B8:-0-00--- B9:00000000
+5A A5 84 EA 4B AE 4D 20 80 00 01 27 |    .7042 |   0.7042 kOhm |          | AUTO?        | B7:00----0- B8:-0-00--- B9:00000000
 ```
 
 ## Story

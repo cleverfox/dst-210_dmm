@@ -11,9 +11,10 @@ Status legend: **[confirmed]** - verified against captures,
 ## Physical layer
 
 - UART, 9600 baud, 8N1 [confirmed 9600; framing assumed 8N1]
+- Logic level 3.3 V on both sides of the isolator [confirmed]
 - Two directions:
   - **multimeter -> display**: readings, header `5A A5`, streamed
-    continuously (sections "Packet format" .. "Byte 11").
+    continuously (sections "Packet format" .. "Bytes 10..11").
   - **display -> multimeter**: mode-select commands, header `AA 55`
     (section "Display -> multimeter: mode commands").
 - WARNING: PCB test points RX, TX, GND, 3V3 are on the multimeter side of
@@ -29,8 +30,10 @@ Fixed length, 12 bytes:
 |---|---|---|
 | 0 | 2 | Header `5A A5` [confirmed] |
 | 2 | 5 | LCD segment bitmap: sign, leading "1", 4 digits, decimal points |
-| 7 | 4 | Annunciator / flag bits (partially decoded) |
-| 11 | 1 | Unknown - NOT a checksum, NOT a plain range code |
+| 7 | 3 | Annunciator / flag bits (partially decoded) |
+| 10 | 2 | AC frequency in Hz, big-endian (V AC); other meaning elsewhere [confirmed] |
+
+There is no checksum.
 
 Example: `5A A5 86 FF 0B 4A 0E 00 02 00 01 1B` = `3.014 V DC`
 
@@ -203,11 +206,36 @@ others `0`.)
 | Bit | V DC | V AC | Ohm | Diode | Cap | kHz | Temp | mA DC | mA AC | Guess |
 |---|---|---|---|---|---|---|---|---|---|---|
 | byte 2 bit2 | 1 | 1 | 1 | 0 | 1 | 1 | 0 | 1 | 1 | auto-range (off only in fixed-range diode/temp; set in both auto mode and resistance mode) |
-| byte 10 bit0 | 1 | 0 | 1 | 1 | 1 | 1 | 1 | 1 | 0 | unknown; clear in AC modes only (with B11 = 00) |
 
-All other bits of bytes 7..10 have always been 0.
+All other bits of bytes 7..9 have always been 0. Byte 10 is the high
+byte of the frequency (see "Bytes 10..11").
 
-## Byte 11 [unknown]
+The display firmware (V0.1.0) never reads byte 6 bit7, byte 7 bits 7, 6, 1,
+byte 8 bits 6..0 (including the unit bits) or byte 9: it derives the unit
+from the selected mode plus the prefix bits. So these bits cannot be
+identified from the firmware; they are probably LCD annunciators of the
+measurement chip that the display side ignores.
+
+## Bytes 10..11: AC frequency
+
+In AC modes, bytes 10..11 are the signal frequency in Hz as a 16-bit
+big-endian number: `(B10 << 8) | B11`.
+
+- [confirmed] Mains: `5A A5 A5 0D 8A FA 07 00 02 00 00 31` = 217.6 V AC,
+  `00 31` = 49 Hz.
+- Display firmware: the readings decoder stores `(B10 << 8) | B11` only
+  while AC is selected, and the UI prints it with `"%d Hz"` as a secondary
+  readout in V AC (and in auto mode when it detects AC voltage). It is not
+  shown in AC current.
+- The two earlier AC captures (0.2916 V AC, 0.183 mA AC) had `00 00`:
+  0 Hz, no countable signal.
+
+In all other modes the display firmware ignores bytes 10..11. There they
+hold a slowly drifting value around `0x0118`..`0x012A` (280..298); its
+meaning is unknown. The notes below are about that non-AC value
+(byte 11 alone; byte 10 was always `01`).
+
+### Byte 11 outside AC [unknown]
 
 Not a checksum: no sum/xor variant matches, and it is identical (`19`) for
 two packets with completely different display bytes. Not a plain range
@@ -229,11 +257,9 @@ code either: two V DC readings on the same 2 V range gave `19` and `1A`.
 | `27` | 00100111 | 3.23 Ohm (both auto mode and resistance mode), 0.7042 kOhm |
 | `29` | 00101001 | 0.2354 MOhm, 1.0115 MOhm |
 | `2A` | 00101010 | LIvE (live-wire mode) |
-| `00` | 00000000 | 0.2916 V AC, 0.183 mA AC |
 
 Observations:
-- In both AC modes byte 10 bit0 and byte 11 are all zero; in every other
-  mode they are non-zero. Something AC modes don't have (bar graph?).
+- In AC modes bytes 10..11 are the frequency instead (see above).
 - `0x18` set in V DC, Ohm OL, diode, capacitance, frequency, temperature;
   clear in AC, current DC and 3.32 Ohm (which have `0x20` instead). Upper
   bits change within one mode too (Ohm: `18` vs `26`), so byte 11 looks
@@ -241,7 +267,7 @@ Observations:
 - Same 3.23 Ohm measurement in auto mode and resistance mode gives the
   same `27`, but so does 0.7042 kOhm. Byte 11 does not simply follow the
   reading either. Across the session it mostly grows (`18`..`1F` early,
-  `20`..`2A` later, AC = `00`). NOT a timer: in live-wire mode it went
+  `20`..`2A` later, AC excluded). NOT a timer: in live-wire mode it went
   `29` -> `27` with no display change. NOT battery: the battery is on the
   display side. Most likely a slow, noisy analog value (measurement chip
   internal temperature or reference?).
@@ -339,6 +365,7 @@ Full packets (multimeter -> display):
 5A A5 96 EA CB 07 0A 00 82 00 01 19   -0.7051 V DC
 5A A5 04 F0 6B 01 00 24 00 00 01 18   OL, Ohm
 5A A5 A5 CD 0F EA 07 00 82 00 00 00   0.2916 V AC
+5A A5 A5 0D 8A FA 07 00 02 00 00 31   217.6 V AC, mains, 49 Hz
 5A A5 F6 EB EB 4B 0E 00 82 00 01 1A   -0.0004 V DC
 5A A5 E0 BB AD ED 8F 00 02 00 01 1D   0.228 V, diode mode
 5A A5 84 CF 87 DA 1F 10 00 00 01 1F   357.9 uF, capacitance
